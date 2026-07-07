@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import st_folium
 import os
 
-# FORCE CLEAR CACHE: Membersihkan sisa memori eror di server Linux Streamlit
+# FORCE CLEAR CACHE: Membersihkan jejak memori bermasalah di dalam server kontainer Streamlit Cloud
 st.cache_data.clear()
 
 # 1. PREMIUM ADVANCED CONFIGURATION
@@ -58,24 +58,30 @@ def load_and_transform_data():
     if os.path.exists(file_excel):
         target_file = file_excel
     else:
+        # Melacak otomatis berkas jika terdapat perbedaan penulisan kapitalisasi ekstensi di Linux server
         files = [f for f in os.listdir('.') if f.lower() == file_excel.lower() or f.endswith('.xlsx')]
         if files:
-            target_file = files[0]
+            target_file = files
             
     if target_file is None:
         return None
         
     try:
-        df_raw = pd.read_excel(target_file, header=3, engine='openpyxl')
+        # Membaca lembar kerja pertama murni (sheet_name=0) secara mutlak tanpa memedulikan string nama sheet
+        df_raw = pd.read_excel(target_file, sheet_name=0, header=3, engine='openpyxl')
         df_raw.columns = df_raw.columns.astype(str).str.strip()
         
-        if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or str(df_raw.columns).startswith('Unnamed'):
-            df_raw = pd.read_excel(target_file, header=4, engine='openpyxl')
+        # Penanganan darurat jika baris data tergeser oleh baris judul kustom tambahan di dalam berkas Excel
+        if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or any('unnamed' in str(c).lower() for c in df_raw.columns[:2]):
+            df_raw = pd.read_excel(target_file, sheet_name=0, header=4, engine='openpyxl')
             df_raw.columns = df_raw.columns.astype(str).str.strip()
             
-        kolom_pertama_asli = df_raw.columns[0]
+        kolom_pertama_asli = df_raw.columns
+        
+        # Mengisolasi rentang nama kelurahan secara vertikal (kolom ke-2 hingga kolom terakhir)
         list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and 'unnamed' not in str(c).lower()]
         
+        # Rekonstruksi struktur bentuk matriks tabel melebar menjadi format memanjang vertikal
         df_long = pd.melt(
             df_raw, 
             id_vars=[kolom_pertama_asli], 
@@ -85,9 +91,12 @@ def load_and_transform_data():
         )
         
         df_long = df_long.rename(columns={kolom_pertama_asli: 'Ekspedisi'})
+        
+        # Mentransformasikan nominal biaya tarif menjadi angka numerik murni
         df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
         df_long = df_long.dropna(subset=['Tarif', 'Ekspedisi'])
         
+        # Reduksi baris data dari string kosong atau metadata sisa kalkulasi Excel
         df_long = df_long[df_long['Ekspedisi'].astype(str).str.strip() != ""]
         df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total|kecamatan|kelurahan', case=False)]
         
@@ -121,8 +130,9 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
+# PROTEKSI JALUR DATA UTAMA: Memastikan aplikasi berhenti secara aman jika berkas fisik Excel gagal dibuka oleh engine OS
 if df_clean is None or df_clean.empty:
-    st.error(f"⚠️ Sistem gagal memproses data asli dari '{file_excel}'. Harap lakukan 'Clear cache' melalui tombol menu tiga titik di pojok kanan atas halaman web Anda.")
+    st.error(f"⚠️ Sistem gagal mengekstrak data asli dari '{file_excel}'. Periksa kembali apakah letak dan nama berkas Anda di repositori GitHub sudah berada di dalam folder yang sama dengan App.py.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
@@ -131,7 +141,7 @@ df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
 st.markdown('<div class="gradient-text-gold-silver">Samarinda Regional Logistics Intelligence System</div>', unsafe_allow_html=True)
 st.markdown('<div class="gradient-text-sub">Automated Cross-Border Spasial Analisis Tarif Logistik Kewilayahan</div>', unsafe_allow_html=True)
 
-# RINGKASAN METRIK KPI UTAMA
+# RINGKASAN METRIK KPI UTAMA (DARI DATA ASLI)
 total_rute = f"{len(df_filtered):,}"
 rata_ongkir = f"Rp {int(df_filtered['Tarif'].mean()):,}" if not df_filtered.empty else "Rp 0"
 total_kurir = f"{df_filtered['Ekspedisi'].nunique()} Vendor"
