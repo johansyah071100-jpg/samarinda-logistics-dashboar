@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import st_folium
 import os
 
-# FORCE CLEAR CACHE: Membuang memori macet di server Streamlit
+# FORCE CLEAR CACHE: Membersihkan sisa memori bermasalah di dalam server kontainer Streamlit Cloud
 st.cache_data.clear()
 
 # 1. PREMIUM ADVANCED CONFIGURATION
@@ -49,50 +49,47 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
-# 2. AUTO-DISCOVER PARSING ENGINE (DETEKSI OTOMATIS BERKAS EXCEL)
+# 2. POSITION-BASED ROBUST CONVERSION ENGINE (100% DATA ASLI)
 def load_and_transform_data():
-    # Taktik Pamungkas: Cari file dengan ekstensi .xlsx apa saja di dalam repositori
-    all_files = [f for f in os.listdir('.') if f.lower().endswith('.xlsx')]
-    
-    if not all_files:
+    if not os.path.exists(file_excel):
         return None
         
-    # Ambil file Excel pertama yang ditemukan di folder GitHub
-    target_file = all_files[0]
-        
     try:
-        # Membaca data asli matriks lembar kerja pertama menggunakan engine openpyxl
-        df_raw = pd.read_excel(target_file, sheet_name=0, header=3, engine='openpyxl')
+        # Membaca data dengan melompati baris judul atas bawaan Excel Anda
+        df_raw = pd.read_excel(file_excel, header=3, engine='openpyxl')
+        
+        # Jika kolom pertama masih terdeteksi Unnamed karena sel gabungan, majukan ke baris berikutnya
+        if any('unnamed' in str(c).lower() for c in df_raw.columns[:2]) or 'TOTAL KECAMATAN TERDATA' in df_raw.columns:
+            df_raw = pd.read_excel(file_excel, header=4, engine='openpyxl')
+            
         df_raw.columns = df_raw.columns.astype(str).str.strip()
         
-        # Penanganan darurat jika baris data tergeser oleh tabel summary
-        if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or any('unnamed' in str(c).lower() for c in df_raw.columns[:2]):
-            df_raw = pd.read_excel(target_file, sheet_name=0, header=4, engine='openpyxl')
-            df_raw.columns = df_raw.columns.astype(str).str.strip()
-            
-        kolom_pertama_asli = df_raw.columns
+        # Mengunci nama kolom pertama secara mutlak sebagai identitas Kurir/Ekspedisi
+        kolom_kurir = df_raw.columns[0]
         
-        # Mengisolasi rentang nama kelurahan secara vertikal (kolom ke-2 hingga kolom terakhir)
+        # Mengisolasi rentang nama kelurahan secara dinamis dari kolom ke-2 sampai kolom terakhir
         list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and 'unnamed' not in str(c).lower()]
         
         # Rekonstruksi struktur bentuk matriks tabel melebar menjadi format memanjang vertikal
         df_long = pd.melt(
             df_raw, 
-            id_vars=[kolom_pertama_asli], 
+            id_vars=[kolom_kurir], 
             value_vars=list_kelurahan, 
             var_name='Kelurahan', 
             value_name='Tarif'
         )
         
-        df_long = df_long.rename(columns={kolom_pertama_asli: 'Ekspedisi'})
+        # Penyeragaman nama kolom internal
+        df_long = df_long.rename(columns={kolom_kurir: 'Ekspedisi'})
         
-        # Mentransformasikan nominal biaya tarif menjadi angka numerik murni
+        # Pembersihan nominal angka tarif dari teks Rp, titik, koma
         df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
         df_long = df_long.dropna(subset=['Tarif', 'Ekspedisi'])
         
-        # Reduksi baris data dari string kosong atau metadata sisa kalkulasi Excel
+        # Eliminasi data ringkasan sampah bawaan matriks Excel
         df_long = df_long[df_long['Ekspedisi'].astype(str).str.strip() != ""]
         df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total|kecamatan|kelurahan', case=False)]
         
@@ -126,9 +123,9 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
-# PROTEKSI JALUR DATA UTAMA: Memastikan aplikasi berhenti secara aman jika tidak ada file excel sama sekali di GitHub
+# PROTEKSI JALUR DATA UTAMA: Memastikan aplikasi berhenti secara aman jika data asli gagal terurai oleh engine
 if df_clean is None or df_clean.empty:
-    st.error("⚠️ Sistem gagal mendeteksi file Excel (.xlsx) di repositori Anda. Pastikan file Excel Anda sudah diunggah dan berada di dalam folder yang sama dengan App.py.")
+    st.error(f"⚠️ Sistem gagal memproses data asli dari '{file_excel}'. Harap lakukan 'Clear cache' melalui tombol menu tiga titik di pojok kanan atas halaman web Anda.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
