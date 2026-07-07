@@ -55,22 +55,22 @@ def load_and_transform_data():
     if not os.path.exists(file_excel):
         return None
     
-    # Membaca data mulai dari baris ke-3 (Header Kelurahan)
+    # Membaca data awal dari baris ke-3 (Header Kelurahan)
     df_raw = pd.read_excel(file_excel, header=3)
     df_raw.columns = df_raw.columns.str.strip()
     
-    # JIKA TERDETEKSI BARIS SUMMARY/KOSONG, KITA MAJU KE BARIS KE-4 ATAU KE-5
-    if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or df_raw.columns[1].startswith('Unnamed'):
+    # JIKA TERDETEKSI BARIS SUMMARY, MAJU KE BARIS BERIKUTNYA
+    if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or str(df_raw.columns[0]).startswith('Unnamed'):
         df_raw = pd.read_excel(file_excel, header=4)
         df_raw.columns = df_raw.columns.str.strip()
-        if df_raw.columns[1].startswith('Unnamed'):
+        if str(df_raw.columns[0]).startswith('Unnamed'):
             df_raw = pd.read_excel(file_excel, header=5)
             df_raw.columns = df_raw.columns.str.strip()
 
-    # Kunci Kolom Indeks 0 (Paling Kiri) secara mutlak sebagai kolom Ekspedisi/Kurir
+    # Kunci nama kolom pertama (paling kiri) sebagai acuan ID Ekspedisi
     nama_kolom_kurir = df_raw.columns[0]
     
-    # Saring kolom kelurahan: Ambil semua kolom selain kolom pertama dan kolom yang mengandung kata 'total'
+    # Saring kolom kelurahan (semua kolom selain kolom pertama dan kolom total)
     list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and not str(c).startswith('Unnamed')]
     
     # Transformasikan struktur matriks lebar menjadi data baris vertikal
@@ -85,23 +85,21 @@ def load_and_transform_data():
     # Standardisasi Nama Kolom Utama
     df_long = df_long.rename(columns={nama_kolom_kurir: 'Ekspedisi'})
     
-    # Bersihkan Data Tarif dari karakter non-angka (seperti 'Rp', titik, koma, atau spasi)
+    # Bersihkan Data Tarif dari karakter non-angka
     df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
     
-    # Hapus baris yang tarifnya kosong agar grafik tidak rusak
+    # Hapus baris kosong agar tidak merusak visualisasi matematika
     df_long = df_long.dropna(subset=['Tarif'])
-    
-    # Hapus data ekspedisi yang berupa angka tidak jelas atau kosong
     df_long = df_long[df_long['Ekspedisi'].notna() & (df_long['Ekspedisi'].astype(str).str.strip() != "")]
     
     return df_long
 
 df_clean = load_and_transform_data()
 
-# 3. HIGH-END PROFESSIONAL SIDEBAR (Profil Lengkap & Arsitektur Canggih)
+# 3. HIGH-END PROFESSIONAL SIDEBAR (Profil & Tech Stack Tanpa Eror Parameter)
 with st.sidebar:
     if os.path.exists(foto_profil):
-        st.image(foto_profil, width=150, width_property='content')
+        st.image(foto_profil, width=150)  # Perbaikan: Menghapus width_property usang
         
     st.markdown("<h2 style='color:#d4af37; margin-bottom:0;'>Rusnadi Aji J.</h2>", unsafe_allow_html=True)
     st.caption("⚖️ Hukum Tata Negara Analyst & Data Architect")
@@ -124,7 +122,7 @@ with st.sidebar:
 
 # Proteksi kegagalan file
 if df_clean is None or df_clean.empty:
-    st.error(f"⚠️ Sistem gagal mengekstrak data dari '{file_excel}'. Periksa apakah tabel data utama Anda tergeser terlalu jauh di dalam Excel.")
+    st.error(f"⚠️ Sistem gagal mengekstrak data dari '{file_excel}'. Pastikan letak data utama Anda di Excel tidak tergeser terlalu jauh.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
@@ -151,9 +149,8 @@ with m_col3:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 5. GRAFIK INTERAKTIF PREMIUM
+# 5. GRAFIK INTERAKTIF PREMIUM (Gaya Warna Metalik)
 chart_left, chart_right = st.columns(2)
-DARK_BG = "#0b0d11"       
 
 with chart_left:
     st.markdown("### 📊 Indeks Komparasi Efisiensi Tarif Ekspedisi")
@@ -217,3 +214,5 @@ st_folium(m, width="100%", height=500)
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # 7. TRANSPARENT DATAFRAME ENGINE (Tabel Data Master Riil)
+st.markdown("### 🗂️ Data Ekstraksi Master Transparan (Format Relasional)")
+st.dataframe(df_filtered, width='stretch')
