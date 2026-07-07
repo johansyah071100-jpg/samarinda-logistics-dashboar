@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import st_folium
 import os
 
-# FORCE CLEAR CACHE: Membersihkan jejak memori bermasalah di dalam server kontainer Streamlit Cloud
+# FORCE CLEAR CACHE: Membuang memori macet di server Streamlit
 st.cache_data.clear()
 
 # 1. PREMIUM ADVANCED CONFIGURATION
@@ -49,29 +49,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
-# 2. SEAMLESS FALLBACK PARSING ENGINE (100% DATA ASLI SCRAPING)
+# 2. AUTO-DISCOVER PARSING ENGINE (DETEKSI OTOMATIS BERKAS EXCEL)
 def load_and_transform_data():
-    target_file = None
-    if os.path.exists(file_excel):
-        target_file = file_excel
-    else:
-        # Melacak otomatis berkas jika terdapat perbedaan penulisan kapitalisasi ekstensi di Linux server
-        files = [f for f in os.listdir('.') if f.lower() == file_excel.lower() or f.endswith('.xlsx')]
-        if files:
-            target_file = files
-            
-    if target_file is None:
+    # Taktik Pamungkas: Cari file dengan ekstensi .xlsx apa saja di dalam repositori
+    all_files = [f for f in os.listdir('.') if f.lower().endswith('.xlsx')]
+    
+    if not all_files:
         return None
         
+    # Ambil file Excel pertama yang ditemukan di folder GitHub
+    target_file = all_files[0]
+        
     try:
-        # Membaca lembar kerja pertama murni (sheet_name=0) secara mutlak tanpa memedulikan string nama sheet
+        # Membaca data asli matriks lembar kerja pertama menggunakan engine openpyxl
         df_raw = pd.read_excel(target_file, sheet_name=0, header=3, engine='openpyxl')
         df_raw.columns = df_raw.columns.astype(str).str.strip()
         
-        # Penanganan darurat jika baris data tergeser oleh baris judul kustom tambahan di dalam berkas Excel
+        # Penanganan darurat jika baris data tergeser oleh tabel summary
         if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or any('unnamed' in str(c).lower() for c in df_raw.columns[:2]):
             df_raw = pd.read_excel(target_file, sheet_name=0, header=4, engine='openpyxl')
             df_raw.columns = df_raw.columns.astype(str).str.strip()
@@ -130,9 +126,9 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
-# PROTEKSI JALUR DATA UTAMA: Memastikan aplikasi berhenti secara aman jika berkas fisik Excel gagal dibuka oleh engine OS
+# PROTEKSI JALUR DATA UTAMA: Memastikan aplikasi berhenti secara aman jika tidak ada file excel sama sekali di GitHub
 if df_clean is None or df_clean.empty:
-    st.error(f"⚠️ Sistem gagal mengekstrak data asli dari '{file_excel}'. Periksa kembali apakah letak dan nama berkas Anda di repositori GitHub sudah berada di dalam folder yang sama dengan App.py.")
+    st.error("⚠️ Sistem gagal mendeteksi file Excel (.xlsx) di repositori Anda. Pastikan file Excel Anda sudah diunggah dan berada di dalam folder yang sama dengan App.py.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
