@@ -49,7 +49,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Nama file target di repositori Anda
 file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
@@ -59,7 +58,6 @@ def load_and_transform_data():
     if os.path.exists(file_excel):
         target_file = file_excel
     else:
-        # Melacak otomatis jika ada perbedaan penulisan extensi huruf besar/kecil di Linux server
         files = [f for f in os.listdir('.') if f.lower() == file_excel.lower() or f.endswith('.xlsx')]
         if files:
             target_file = files[0]
@@ -68,21 +66,16 @@ def load_and_transform_data():
         return None
         
     try:
-        # Membaca data matriks lembar kerja mulai dari baris ke-3 menggunakan engine openpyxl
         df_raw = pd.read_excel(target_file, header=3, engine='openpyxl')
         df_raw.columns = df_raw.columns.astype(str).str.strip()
         
-        # Penanganan jika baris data tergeser baris judul Excel tambahan
         if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or str(df_raw.columns).startswith('Unnamed'):
             df_raw = pd.read_excel(target_file, header=4, engine='openpyxl')
             df_raw.columns = df_raw.columns.astype(str).str.strip()
             
         kolom_pertama_asli = df_raw.columns[0]
-        
-        # Kumpulkan kolom kelurahan murni
         list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and 'unnamed' not in str(c).lower()]
         
-        # Transformasi bentuk struktur matriks tabel lebar menjadi memanjang vertikal
         df_long = pd.melt(
             df_raw, 
             id_vars=[kolom_pertama_asli], 
@@ -92,12 +85,9 @@ def load_and_transform_data():
         )
         
         df_long = df_long.rename(columns={kolom_pertama_asli: 'Ekspedisi'})
-        
-        # Konversi biaya tarif menjadi data numeric angka murni
         df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
         df_long = df_long.dropna(subset=['Tarif', 'Ekspedisi'])
         
-        # Pembersihan metadata sampah
         df_long = df_long[df_long['Ekspedisi'].astype(str).str.strip() != ""]
         df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total|kecamatan|kelurahan', case=False)]
         
@@ -131,7 +121,6 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
-# JALUR UTAMAKAN DATA ASLI: Jika data asli gagal termuat, sistem meluncurkan teks peringatan kontrol terpusat
 if df_clean is None or df_clean.empty:
     st.error(f"⚠️ Sistem gagal memproses data asli dari '{file_excel}'. Harap lakukan 'Clear cache' melalui tombol menu tiga titik di pojok kanan atas halaman web Anda.")
     st.stop()
@@ -142,7 +131,7 @@ df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
 st.markdown('<div class="gradient-text-gold-silver">Samarinda Regional Logistics Intelligence System</div>', unsafe_allow_html=True)
 st.markdown('<div class="gradient-text-sub">Automated Cross-Border Spasial Analisis Tarif Logistik Kewilayahan</div>', unsafe_allow_html=True)
 
-# RINGKASAN METRIK KPI UTAMA (DARI DATA ASLI)
+# RINGKASAN METRIK KPI UTAMA
 total_rute = f"{len(df_filtered):,}"
 rata_ongkir = f"Rp {int(df_filtered['Tarif'].mean()):,}" if not df_filtered.empty else "Rp 0"
 total_kurir = f"{df_filtered['Ekspedisi'].nunique()} Vendor"
@@ -210,10 +199,6 @@ if not df_filtered.empty:
         folium.CircleMarker(
             location=[lat_offset, lon_offset],
             radius=9,
-        # Menyusun penanda kluster lingkaran interaktif pada peta gelap
-        folium.CircleMarker(
-            location=[lat_offset, lon_offset],
-            radius=9,
             popup=folium.Popup(popup_html, max_width=250),
             color='#d4af37',
             fill=True,
@@ -221,7 +206,6 @@ if not df_filtered.empty:
             fill_opacity=0.85
         ).add_to(m)
 
-# Menampilkan peta interaktif secara visual dengan memanfaatkan Streamlit Folium
 st_folium(m, width="100%", height=500)
 
 st.markdown("<hr>", unsafe_allow_html=True)
