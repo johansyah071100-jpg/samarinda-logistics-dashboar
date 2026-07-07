@@ -56,36 +56,28 @@ def load_and_transform_data():
         return None
     
     df_raw = None
-    # Lakukan scanning dari baris 0 sampai 10 untuk mencari letak tabel kelurahan yang sesungguhnya
     for skip_rows in range(11):
         try:
             test_df = pd.read_excel(file_excel, header=skip_rows)
             test_df.columns = test_df.columns.str.strip()
             
-            # Cek apakah baris ini memiliki banyak kolom kelurahan (bukan ringkasan pendek)
-            # Kita cari kata kunci kelurahan yang sebelumnya terdeteksi di terminal Anda
             sample_keywords = ['sidodadi', 'lempake', 'sempaja', 'sungai', 'karang', 'loa', 'bandara']
             columns_str = " ".join([str(c).lower() for c in test_df.columns])
             
             matches = sum(1 for k in sample_keywords if k in columns_str)
-            if matches >= 2:  # Jika minimal ada 2 nama kelurahan terdeteksi di header, ini tabel utama kita!
+            if matches >= 2:
                 df_raw = test_df
                 break
         except Exception:
             continue
 
-    # Jika pencarian cerdas gagal, gunakan baris ke-3 sebagai fallback default
     if df_raw is None:
         df_raw = pd.read_excel(file_excel, header=3)
         df_raw.columns = df_raw.columns.str.strip()
     
-    # Ambil kolom paling kiri sebagai kolom nama Ekspedisi
     nama_kolom_kurir = df_raw.columns[0]
-    
-    # Saring kolom kelurahan (mengabaikan kolom pertama, kolom total, dan kolom Unnamed)
     list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and not str(c).startswith('Unnamed')]
     
-    # Transformasikan matriks lebar menjadi format relasional vertikal
     df_long = pd.melt(
         df_raw, 
         id_vars=[nama_kolom_kurir], 
@@ -94,13 +86,8 @@ def load_and_transform_data():
         value_name='Tarif'
     )
     
-    # Ubah nama kolom kurir pertama menjadi seragam 'Ekspedisi'
     df_long = df_long.rename(columns={nama_kolom_kurir: 'Ekspedisi'})
-    
-    # Bersihkan Data Tarif dari karakter non-angka (seperti Rp, titik, koma)
     df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
-    
-    # Buang data kosong agar grafik berjalan mulus
     df_long = df_long.dropna(subset=['Tarif'])
     df_long = df_long[df_long['Ekspedisi'].notna() & (df_long['Ekspedisi'].astype(str).str.strip() != "")]
     
@@ -108,7 +95,7 @@ def load_and_transform_data():
 
 df_clean = load_and_transform_data()
 
-# 3. HIGH-END PROFESSIONAL SIDEBAR (Profil & Tech Stack Lengkap)
+# 3. HIGH-END PROFESSIONAL SIDEBAR
 with st.sidebar:
     if os.path.exists(foto_profil):
         st.image(foto_profil, width=150)
@@ -132,18 +119,16 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
-# Proteksi kegagalan file
 if df_clean is None or df_clean.empty:
     st.error(f"⚠️ Sistem gagal mengekstrak data dari '{file_excel}'. Pastikan letak data utama Anda di Excel tidak tergeser terlalu jauh.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
 
-# 4. EXECUTIVE HERO SECTION (Tampilan Gradien Emas-Perak)
+# 4. EXECUTIVE HERO SECTION
 st.markdown('<div class="gradient-text-gold-silver">Samarinda Regional Logistics Intelligence System</div>', unsafe_allow_html=True)
 st.markdown('<div class="gradient-text-sub">Automated Cross-Border Spasial Analisis Tarif Logistik Kewilayahan</div>', unsafe_allow_html=True)
 
-# RINGKASAN METRIK KPI UTAMA
 if not df_filtered.empty:
     total_rute = f"{len(df_filtered):,}"
     rata_ongkir = f"Rp {int(df_filtered['Tarif'].mean()):,}"
@@ -193,7 +178,7 @@ with chart_right:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 6. ADVANCED SPATIAL ANALYTICS (PETA INTERAKTIF CYBER DARK)
+# 6. ADVANCED SPATIAL ANALYTICS
 st.markdown("### 🗺️ Visualisasi Spasial Kluster Jangkauan Geografis Kota Samarinda")
 
 m = folium.Map(location=[-0.5021, 117.1536], zoom_start=12, tiles="CartoDB dark_matter")
@@ -214,10 +199,6 @@ if not df_filtered.empty:
         folium.CircleMarker(
             location=[lat_offset, lon_offset],
             radius=9,
-        # Menyisipkan marker spasial interaktif ke objek peta
-        folium.CircleMarker(
-            location=[lat_offset, lon_offset],
-            radius=9,
             popup=folium.Popup(popup_html, max_width=250),
             color='#d4af37',
             fill=True,
@@ -225,11 +206,10 @@ if not df_filtered.empty:
             fill_opacity=0.85
         ).add_to(m)
 
-# Menampilkan peta interaktif secara visual pada halaman web
 st_folium(m, width="100%", height=500)
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 7. TRANSPARENT DATAFRAME ENGINE (Tabel Data Master Riil)
+# 7. TRANSPARENT DATAFRAME ENGINE
 st.markdown("### 🗂️ Data Ekstraksi Master Transparan (Format Relasional)")
 st.dataframe(df_filtered, width='stretch')
