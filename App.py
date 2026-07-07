@@ -49,31 +49,43 @@ st.markdown("""
 file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
-# 2. FIXED COLUMN-INDEX BASED CONVERSION ENGINE (ANTI-KOSONG)
+# 2. ULTRA-AGRESIVE SCANNING CONVERSION ENGINE
 @st.cache_data
 def load_and_transform_data():
     if not os.path.exists(file_excel):
         return None
     
-    # Membaca data awal dari baris ke-3 (Header Kelurahan)
-    df_raw = pd.read_excel(file_excel, header=3)
-    df_raw.columns = df_raw.columns.str.strip()
-    
-    # JIKA TERDETEKSI BARIS SUMMARY, MAJU KE BARIS BERIKUTNYA
-    if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or str(df_raw.columns[0]).startswith('Unnamed'):
-        df_raw = pd.read_excel(file_excel, header=4)
-        df_raw.columns = df_raw.columns.str.strip()
-        if str(df_raw.columns[0]).startswith('Unnamed'):
-            df_raw = pd.read_excel(file_excel, header=5)
-            df_raw.columns = df_raw.columns.str.strip()
+    df_raw = None
+    # Lakukan scanning dari baris 0 sampai 10 untuk mencari letak tabel kelurahan yang sesungguhnya
+    for skip_rows in range(11):
+        try:
+            test_df = pd.read_excel(file_excel, header=skip_rows)
+            test_df.columns = test_df.columns.str.strip()
+            
+            # Cek apakah baris ini memiliki banyak kolom kelurahan (bukan ringkasan pendek)
+            # Kita cari kata kunci kelurahan yang sebelumnya terdeteksi di terminal Anda
+            sample_keywords = ['sidodadi', 'lempake', 'sempaja', 'sungai', 'karang', 'loa', 'bandara']
+            columns_str = " ".join([str(c).lower() for c in test_df.columns])
+            
+            matches = sum(1 for k in sample_keywords if k in columns_str)
+            if matches >= 2:  # Jika minimal ada 2 nama kelurahan terdeteksi di header, ini tabel utama kita!
+                df_raw = test_df
+                break
+        except Exception:
+            continue
 
-    # Kunci nama kolom pertama (paling kiri) sebagai acuan ID Ekspedisi
+    # Jika pencarian cerdas gagal, gunakan baris ke-3 sebagai fallback default
+    if df_raw is None:
+        df_raw = pd.read_excel(file_excel, header=3)
+        df_raw.columns = df_raw.columns.str.strip()
+    
+    # Ambil kolom paling kiri sebagai kolom nama Ekspedisi
     nama_kolom_kurir = df_raw.columns[0]
     
-    # Saring kolom kelurahan (semua kolom selain kolom pertama dan kolom total)
+    # Saring kolom kelurahan (mengabaikan kolom pertama, kolom total, dan kolom Unnamed)
     list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and not str(c).startswith('Unnamed')]
     
-    # Transformasikan struktur matriks lebar menjadi data baris vertikal
+    # Transformasikan matriks lebar menjadi format relasional vertikal
     df_long = pd.melt(
         df_raw, 
         id_vars=[nama_kolom_kurir], 
@@ -82,13 +94,13 @@ def load_and_transform_data():
         value_name='Tarif'
     )
     
-    # Standardisasi Nama Kolom Utama
+    # Ubah nama kolom kurir pertama menjadi seragam 'Ekspedisi'
     df_long = df_long.rename(columns={nama_kolom_kurir: 'Ekspedisi'})
     
-    # Bersihkan Data Tarif dari karakter non-angka
+    # Bersihkan Data Tarif dari karakter non-angka (seperti Rp, titik, koma)
     df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
     
-    # Hapus baris kosong agar tidak merusak visualisasi matematika
+    # Buang data kosong agar grafik berjalan mulus
     df_long = df_long.dropna(subset=['Tarif'])
     df_long = df_long[df_long['Ekspedisi'].notna() & (df_long['Ekspedisi'].astype(str).str.strip() != "")]
     
@@ -96,10 +108,10 @@ def load_and_transform_data():
 
 df_clean = load_and_transform_data()
 
-# 3. HIGH-END PROFESSIONAL SIDEBAR (Profil & Tech Stack Tanpa Eror Parameter)
+# 3. HIGH-END PROFESSIONAL SIDEBAR (Profil & Tech Stack Lengkap)
 with st.sidebar:
     if os.path.exists(foto_profil):
-        st.image(foto_profil, width=150)  # Perbaikan: Menghapus width_property usang
+        st.image(foto_profil, width=150)
         
     st.markdown("<h2 style='color:#d4af37; margin-bottom:0;'>Rusnadi Aji J.</h2>", unsafe_allow_html=True)
     st.caption("⚖️ Hukum Tata Negara Analyst & Data Architect")
@@ -149,7 +161,7 @@ with m_col3:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 5. GRAFIK INTERAKTIF PREMIUM (Gaya Warna Metalik)
+# 5. GRAFIK INTERAKTIF PREMIUM
 chart_left, chart_right = st.columns(2)
 
 with chart_left:
@@ -202,6 +214,10 @@ if not df_filtered.empty:
         folium.CircleMarker(
             location=[lat_offset, lon_offset],
             radius=9,
+        # Menyisipkan marker spasial interaktif ke objek peta
+        folium.CircleMarker(
+            location=[lat_offset, lon_offset],
+            radius=9,
             popup=folium.Popup(popup_html, max_width=250),
             color='#d4af37',
             fill=True,
@@ -209,6 +225,7 @@ if not df_filtered.empty:
             fill_opacity=0.85
         ).add_to(m)
 
+# Menampilkan peta interaktif secara visual pada halaman web
 st_folium(m, width="100%", height=500)
 
 st.markdown("<hr>", unsafe_allow_html=True)
