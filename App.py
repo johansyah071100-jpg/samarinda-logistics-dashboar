@@ -46,63 +46,44 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# GANTI: Proteksi pelacakan nama file dinamis secara absolut di root directory server
 file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
-# 2. SEAMLESS FALLBACK PARSING ENGINE (ANTI-KOSONG & ANTI-GAGAL)
+# 2. PURE INDEX-BASED CONVERSION ENGINE (100% DATA ASLI SCRAPING)
 @st.cache_data
 def load_and_transform_data():
     if not os.path.exists(file_excel):
-        # Jika file tidak terdeteksi langsung, cari file xlsx apa saja di dalam folder
-        all_files = [f for f in os.listdir('.') if f.endswith('.xlsx')]
-        if all_files:
-            target_file = all_files[0]
-        else:
-            return None
-    else:
-        target_file = file_excel
-
-    df_raw = None
-    # Cari baris data asli dengan melompati tabel ringkasan secara paksa
-    for i in [3, 4, 5, 2, 1, 0, 6]:
-        try:
-            test_df = pd.read_excel(target_file, header=i)
-            test_df.columns = test_df.columns.str.strip()
-            # Cek jika kolom mengandung nama Kelurahan yang valid
-            if len(test_df.columns) > 3 and not str(test_df.columns[1]).startswith('Unnamed'):
-                df_raw = test_df
-                break
-        except Exception:
-            continue
-
-    if df_raw is None:
         return None
-
-    # Ambil nama kolom pertama sebagai identitas kurir ekspedisi
-    kolom_kurir = df_raw.columns[0]
     
-    # Saring kolom kelurahan (semua kolom sisa yang bukan kolom total)
+    # Membaca data asli tepat mulai dari baris ke-3 (Header Kelurahan)
+    df_raw = pd.read_excel(file_excel, header=3)
+    
+    # Ambil nama asli dari kolom pertama (Indeks 0) sebagai kolom Kurir/Ekspedisi
+    kolom_pertama_asli = df_raw.columns[0]
+    
+    # Saring kolom kelurahan (Semua kolom dari indeks ke-1 sampai akhir, buang kolom total ringkasan)
     list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and 'unnamed' not in str(c).lower()]
     
-    # Melelehkan matriks menjadi format vertikal database
+    # Melelehkan matriks lebar menjadi format database vertikal
     df_long = pd.melt(
         df_raw, 
-        id_vars=[kolom_kurir], 
+        id_vars=[kolom_pertama_asli], 
         value_vars=list_kelurahan, 
         var_name='Kelurahan', 
         value_name='Tarif'
     )
     
-    # Penyeragaman nama kolom internal
-    df_long = df_long.rename(columns={kolom_kurir: 'Ekspedisi'})
+    # Ubah nama kolom kurir pertama menjadi seragam 'Ekspedisi'
+    df_long = df_long.rename(columns={kolom_pertama_asli: 'Ekspedisi'})
     
-    # Pembersihan nominal angka tarif dari teks Rp, titik, koma
+    # Bersihkan Data Tarif dari karakter non-angka (seperti Rp, titik, koma) agar menjadi angka murni
     df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
-    df_long = df_long.dropna(subset=['Tarif'])
     
-    # Bersihkan nama ekspedisi palsu bawaan sisa ringkasan Excel
-    df_long = df_long[df_long['Ekspedisi'].notna() & (df_long['Ekspedisi'].astype(str).str.strip() != "")]
+    # Buang baris data yang kosong atau rusak
+    df_long = df_long.dropna(subset=['Tarif', 'Ekspedisi'])
+    
+    # Bersihkan sisa baris total atau baris kosong yang tidak sengaja terbaca
+    df_long = df_long[df_long['Ekspedisi'].astype(str).str.strip() != ""]
     df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total|kecamatan|kelurahan', case=False)]
     
     return df_long
@@ -133,25 +114,18 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
-# Sistem Pengaman Tampilan Cadangan jika Ekstraksi File Kosong
+# PROTEKSI MUTLAK: Jika data asli gagal dibaca, hentikan sistem (Hapus data palsu)
 if df_clean is None or df_clean.empty:
-    # Dummy data generator premium otomatis agar web Anda tidak kosong dan tetap terlihat canggih di depan user/perekrut
-    data_backup = {
-        'Ekspedisi': ['J&T Express', 'JNE Regular', 'Sicepat Gokil', 'POS Indonesia', 'TIKI Regular']*10,
-        'Kelurahan': ['Sidodadi', 'Lempake', 'Sempaja Utara', 'Teluk Lerong', 'Makroman']*10,
-        'Tarif': [12000, 15000, 11000, 14000, 19000, 13000, 16000, 10000, 15000, 22000]*5
-    }
-    df_filtered = pd.DataFrame(data_backup)
-    if selected_ekspedisi:
-        df_filtered = df_filtered[df_filtered['Ekspedisi'].isin(selected_ekspedisi)]
-else:
-    df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
+    st.error(f"⚠️ Sistem gagal memuat data asli dari '{file_excel}'. Pastikan file Excel Anda sudah diunggah di GitHub pada folder yang sama dengan App.py.")
+    st.stop()
+
+df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
 
 # 4. EXECUTIVE HERO SECTION (Tampilan Gradien Emas-Perak)
 st.markdown('<div class="gradient-text-gold-silver">Samarinda Regional Logistics Intelligence System</div>', unsafe_allow_html=True)
 st.markdown('<div class="gradient-text-sub">Automated Cross-Border Spasial Analisis Tarif Logistik Kewilayahan</div>', unsafe_allow_html=True)
 
-# RINGKASAN METRIK KPI UTAMA
+# RINGKASAN METRIK KPI UTAMA (DARI DATA ASLI)
 total_rute = f"{len(df_filtered):,}"
 rata_ongkir = f"Rp {int(df_filtered['Tarif'].mean()):,}" if not df_filtered.empty else "Rp 0"
 total_kurir = f"{df_filtered['Ekspedisi'].nunique()} Vendor"
@@ -166,7 +140,7 @@ with m_col3:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 5. GRAFIK INTERAKTIF PREMIUM
+# 5. GRAFIK INTERAKTIF PREMIUM (100% DATA RIIL)
 chart_left, chart_right = st.columns(2)
 
 with chart_left:
