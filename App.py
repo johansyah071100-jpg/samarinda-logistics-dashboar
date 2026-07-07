@@ -49,53 +49,50 @@ st.markdown("""
 file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
-# 2. ULTRA-AGRESIVE SCANNING CONVERSION ENGINE
+# 2. PENGUNCIAN INDEKS MUTLAK (ANTI-KOSONG & ANTI-GAGAL)
 @st.cache_data
 def load_and_transform_data():
     if not os.path.exists(file_excel):
         return None
     
-    df_raw = None
-    for skip_rows in range(11):
-        try:
-            test_df = pd.read_excel(file_excel, header=skip_rows)
-            test_df.columns = test_df.columns.str.strip()
-            
-            sample_keywords = ['sidodadi', 'lempake', 'sempaja', 'sungai', 'karang', 'loa', 'bandara']
-            columns_str = " ".join([str(c).lower() for c in test_df.columns])
-            
-            matches = sum(1 for k in sample_keywords if k in columns_str)
-            if matches >= 2:
-                df_raw = test_df
-                break
-        except Exception:
-            continue
-
-    if df_raw is None:
-        df_raw = pd.read_excel(file_excel, header=3)
-        df_raw.columns = df_raw.columns.str.strip()
+    # PAKSA: Membaca data langsung tepat di baris ke-3 (Letak data Kelurahan Anda)
+    df_raw = pd.read_excel(file_excel, header=3)
+    df_raw.columns = df_raw.columns.str.strip()
     
-    nama_kolom_kurir = df_raw.columns[0]
-    list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and not str(c).startswith('Unnamed')]
+    # Ambil nama asli dari kolom pertama (Indeks 0) sebagai kolom Kurir/Ekspedisi
+    kolom_pertama = df_raw.columns[0]
     
+    # Saring semua kolom kelurahan sisa (Ambil kolom indeks ke-1 sampai terakhir)
+    # Singkirkan jika ada kolom yang tidak sengaja mengandung kata 'total'
+    list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower()]
+    
+    # Transformasikan struktur matriks lebar menjadi format panjang vertikal
     df_long = pd.melt(
         df_raw, 
-        id_vars=[nama_kolom_kurir], 
+        id_vars=[kolom_pertama], 
         value_vars=list_kelurahan, 
         var_name='Kelurahan', 
         value_name='Tarif'
     )
     
-    df_long = df_long.rename(columns={nama_kolom_kurir: 'Ekspedisi'})
+    # Seragamkan nama kolom utama data hasil transformasi
+    df_long = df_long.rename(columns={kolom_pertama: 'Ekspedisi'})
+    
+    # Bersihkan kolom Tarif dari karakter teks (Rp, titik, koma) agar menjadi angka murni
     df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
+    
+    # Bersihkan baris data dari nilai kosong (NaN) atau ekspedisi berupa angka ringkasan
     df_long = df_long.dropna(subset=['Tarif'])
     df_long = df_long[df_long['Ekspedisi'].notna() & (df_long['Ekspedisi'].astype(str).str.strip() != "")]
+    
+    # Tambahan: Jika nama ekspedisi terbaca sebagai 'Unnamed' atau angka, bersihkan data tersebut
+    df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total', case=False)]
     
     return df_long
 
 df_clean = load_and_transform_data()
 
-# 3. HIGH-END PROFESSIONAL SIDEBAR
+# 3. HIGH-END PROFESSIONAL SIDEBAR (Profil & Tech Stack Lengkap)
 with st.sidebar:
     if os.path.exists(foto_profil):
         st.image(foto_profil, width=150)
@@ -119,16 +116,18 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
+# Proteksi kegagalan file
 if df_clean is None or df_clean.empty:
-    st.error(f"⚠️ Sistem gagal mengekstrak data dari '{file_excel}'. Pastikan letak data utama Anda di Excel tidak tergeser terlalu jauh.")
+    st.error(f"⚠️ Sistem gagal mengekstrak data dari '{file_excel}'. Pastikan nama berkas data Excel Anda sudah diunggah dengan benar di folder utama GitHub.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
 
-# 4. EXECUTIVE HERO SECTION
+# 4. EXECUTIVE HERO SECTION (Tampilan Gradien Emas-Perak)
 st.markdown('<div class="gradient-text-gold-silver">Samarinda Regional Logistics Intelligence System</div>', unsafe_allow_html=True)
 st.markdown('<div class="gradient-text-sub">Automated Cross-Border Spasial Analisis Tarif Logistik Kewilayahan</div>', unsafe_allow_html=True)
 
+# RINGKASAN METRIK KPI UTAMA
 if not df_filtered.empty:
     total_rute = f"{len(df_filtered):,}"
     rata_ongkir = f"Rp {int(df_filtered['Tarif'].mean()):,}"
@@ -178,10 +177,10 @@ with chart_right:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 6. ADVANCED SPATIAL ANALYTICS
+# 6. ADVANCED SPATIAL ANALYTICS (PETA INTERAKTIF CYBER DARK)
 st.markdown("### 🗺️ Visualisasi Spasial Kluster Jangkauan Geografis Kota Samarinda")
 
-m = folium.Map(location=[-0.5021, 117.1536], zoom_start=12, tiles="CartoDB dark_matter")
+m = map = folium.Map(location=[-0.5021, 117.1536], zoom_start=12, tiles="CartoDB dark_matter")
 
 if not df_filtered.empty:
     df_map = df_filtered.groupby('Kelurahan')['Tarif'].mean().reset_index().sort_values(by='Tarif', ascending=False).head(15)
@@ -210,6 +209,6 @@ st_folium(m, width="100%", height=500)
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 7. TRANSPARENT DATAFRAME ENGINE
+# 7. TRANSPARENT DATAFRAME ENGINE (Tabel Data Master Riil)
 st.markdown("### 🗂️ Data Ekstraksi Master Transparan (Format Relasional)")
 st.dataframe(df_filtered, width='stretch')
