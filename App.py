@@ -5,6 +5,9 @@ import folium
 from streamlit_folium import st_folium
 import os
 
+# FORCE CLEAR CACHE: Membersihkan sisa memori eror di server Linux Streamlit
+st.cache_data.clear()
+
 # 1. PREMIUM ADVANCED CONFIGURATION
 st.set_page_config(
     page_title="Samarinda Logistics Intelligence System",
@@ -46,47 +49,61 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# Nama file target di repositori Anda
 file_excel = "Dashboard_Ongkir_Samarinda_Lengkap.xlsx"
 foto_profil = "poto_profil.jpeg"
 
-# 2. PURE INDEX-BASED CONVERSION ENGINE (100% DATA ASLI SCRAPING)
-@st.cache_data
+# 2. SEAMLESS FALLBACK PARSING ENGINE (100% DATA ASLI SCRAPING)
 def load_and_transform_data():
-    if not os.path.exists(file_excel):
+    target_file = None
+    if os.path.exists(file_excel):
+        target_file = file_excel
+    else:
+        # Melacak otomatis jika ada perbedaan penulisan extensi huruf besar/kecil di Linux server
+        files = [f for f in os.listdir('.') if f.lower() == file_excel.lower() or f.endswith('.xlsx')]
+        if files:
+            target_file = files[0]
+            
+    if target_file is None:
         return None
-    
-    # Membaca data asli tepat mulai dari baris ke-3 (Header Kelurahan)
-    df_raw = pd.read_excel(file_excel, header=3)
-    
-    # Ambil nama asli dari kolom pertama (Indeks 0) sebagai kolom Kurir/Ekspedisi
-    kolom_pertama_asli = df_raw.columns[0]
-    
-    # Saring kolom kelurahan (Semua kolom dari indeks ke-1 sampai akhir, buang kolom total ringkasan)
-    list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and 'unnamed' not in str(c).lower()]
-    
-    # Melelehkan matriks lebar menjadi format database vertikal
-    df_long = pd.melt(
-        df_raw, 
-        id_vars=[kolom_pertama_asli], 
-        value_vars=list_kelurahan, 
-        var_name='Kelurahan', 
-        value_name='Tarif'
-    )
-    
-    # Ubah nama kolom kurir pertama menjadi seragam 'Ekspedisi'
-    df_long = df_long.rename(columns={kolom_pertama_asli: 'Ekspedisi'})
-    
-    # Bersihkan Data Tarif dari karakter non-angka (seperti Rp, titik, koma) agar menjadi angka murni
-    df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
-    
-    # Buang baris data yang kosong atau rusak
-    df_long = df_long.dropna(subset=['Tarif', 'Ekspedisi'])
-    
-    # Bersihkan sisa baris total atau baris kosong yang tidak sengaja terbaca
-    df_long = df_long[df_long['Ekspedisi'].astype(str).str.strip() != ""]
-    df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total|kecamatan|kelurahan', case=False)]
-    
-    return df_long
+        
+    try:
+        # Membaca data matriks lembar kerja mulai dari baris ke-3 menggunakan engine openpyxl
+        df_raw = pd.read_excel(target_file, header=3, engine='openpyxl')
+        df_raw.columns = df_raw.columns.astype(str).str.strip()
+        
+        # Penanganan jika baris data tergeser baris judul Excel tambahan
+        if 'TOTAL KECAMATAN TERDATA' in df_raw.columns or str(df_raw.columns).startswith('Unnamed'):
+            df_raw = pd.read_excel(target_file, header=4, engine='openpyxl')
+            df_raw.columns = df_raw.columns.astype(str).str.strip()
+            
+        kolom_pertama_asli = df_raw.columns[0]
+        
+        # Kumpulkan kolom kelurahan murni
+        list_kelurahan = [str(c) for c in df_raw.columns[1:] if 'total' not in str(c).lower() and 'unnamed' not in str(c).lower()]
+        
+        # Transformasi bentuk struktur matriks tabel lebar menjadi memanjang vertikal
+        df_long = pd.melt(
+            df_raw, 
+            id_vars=[kolom_pertama_asli], 
+            value_vars=list_kelurahan, 
+            var_name='Kelurahan', 
+            value_name='Tarif'
+        )
+        
+        df_long = df_long.rename(columns={kolom_pertama_asli: 'Ekspedisi'})
+        
+        # Konversi biaya tarif menjadi data numeric angka murni
+        df_long['Tarif'] = pd.to_numeric(df_long['Tarif'].astype(str).str.replace(r'[^\d]', '', regex=True), errors='coerce')
+        df_long = df_long.dropna(subset=['Tarif', 'Ekspedisi'])
+        
+        # Pembersihan metadata sampah
+        df_long = df_long[df_long['Ekspedisi'].astype(str).str.strip() != ""]
+        df_long = df_long[~df_long['Ekspedisi'].astype(str).str.contains('Unnamed|total|kecamatan|kelurahan', case=False)]
+        
+        return df_long
+    except Exception:
+        return None
 
 df_clean = load_and_transform_data()
 
@@ -114,9 +131,9 @@ with st.sidebar:
     else:
         selected_ekspedisi = []
 
-# PROTEKSI MUTLAK: Jika data asli gagal dibaca, hentikan sistem (Hapus data palsu)
+# JALUR UTAMAKAN DATA ASLI: Jika data asli gagal termuat, sistem meluncurkan teks peringatan kontrol terpusat
 if df_clean is None or df_clean.empty:
-    st.error(f"⚠️ Sistem gagal memuat data asli dari '{file_excel}'. Pastikan file Excel Anda sudah diunggah di GitHub pada folder yang sama dengan App.py.")
+    st.error(f"⚠️ Sistem gagal memproses data asli dari '{file_excel}'. Harap lakukan 'Clear cache' melalui tombol menu tiga titik di pojok kanan atas halaman web Anda.")
     st.stop()
 
 df_filtered = df_clean[df_clean['Ekspedisi'].isin(selected_ekspedisi)]
@@ -140,7 +157,7 @@ with m_col3:
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 5. GRAFIK INTERAKTIF PREMIUM (100% DATA RIIL)
+# 5. GRAFIK INTERAKTIF PREMIUM
 chart_left, chart_right = st.columns(2)
 
 with chart_left:
@@ -193,6 +210,10 @@ if not df_filtered.empty:
         folium.CircleMarker(
             location=[lat_offset, lon_offset],
             radius=9,
+        # Menyusun penanda kluster lingkaran interaktif pada peta gelap
+        folium.CircleMarker(
+            location=[lat_offset, lon_offset],
+            radius=9,
             popup=folium.Popup(popup_html, max_width=250),
             color='#d4af37',
             fill=True,
@@ -200,6 +221,7 @@ if not df_filtered.empty:
             fill_opacity=0.85
         ).add_to(m)
 
+# Menampilkan peta interaktif secara visual dengan memanfaatkan Streamlit Folium
 st_folium(m, width="100%", height=500)
 
 st.markdown("<hr>", unsafe_allow_html=True)
